@@ -1,0 +1,4 @@
+name = Content Profile Privacy
+package = Content Profile
+dependencies[] = content_profile
+core = 6.x

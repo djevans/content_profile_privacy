@@ -1,0 +1,143 @@
+<?php
+
+/**
+ * Implements hook_perm().
+ */
+function content_profile_privacy_perm() {
+  return array('administer content_profile_privacy');
+}
+
+/**
+ * Implements hook_menu().
+ */
+function content_profile_privacy_menu() {
+  $items = array();
+
+  // Type '$item ⇥' to create a new menu item.
+  $items['admin/settings/content_profile_privacy'] = array(
+    'title' => 'Content Profile Privacy Settings',
+    'description' => 'Set which content profile fieldgroups can have privacy options set by individual users.',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('content_profile_privacy_settings_form'),
+    'access arguments' => array('administer content_profile_privacy'),
+  );
+  
+  return $items;
+}
+
+/**
+ * Implements hook_form().
+ */
+function content_profile_privacy_settings_form(&$form_state) {
+  $form = array();
+  // add a checkbox for each fieldset in the user profile, pre-populated with correct data
+  // fetch any pre-existing values of the "content_profile_private_fieldgroups" variable
+  $settings = variable_get('content_profile_privacy_fieldgroups',array());
+  $profile_fieldgroups = fieldgroup_groups('profile');
+  foreach ($profile_fieldgroups as $name => $fieldgroup) {
+    $form[$name] = array(
+      '#type' => 'checkbox',
+      '#title' => $fieldgroup['label'],
+      '#default_value' => (array_key_exists($name,$settings))? $settings[$name]: 0,
+    );
+  }
+  $form['save_settings'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save settings'),
+  );
+  $form['#submit'][] = 'content_profile_privacy_form_submit';
+  
+  return $form;
+}
+
+function content_profile_privacy_form_submit(&$form, &$form_state) {
+  $profile_fieldgroups = fieldgroup_groups('profile');
+  $settings = array_intersect_key($form_state['values'],$profile_fieldgroups);
+  variable_set('content_profile_privacy_fieldgroups',$settings);
+  dsm('Content Profile privacy settings saved.');
+}
+
+function content_profile_privacy_shared_group($account,$other_account) {
+  if (is_object($account)) {
+    $account = $account->uid;
+  }
+  if (is_object($other_account)) {
+    $other_account = $other_account->uid;
+  }
+  $shared_groups = db_query("SELECT * FROM {og_uid} og1 JOIN {oguid} og2 ON og1.nid = og2.nid WHERE og1.uid = %d AND og2.uid = %d", array('%a' => $account, '%o' => $other_account));
+  return (db_result($shared_groups) > 0);
+}
+
+/**
+ * @see content_access()
+ */
+function content_profile_privacy_field_access($op,$field,$account,$node) {
+  
+  GLOBAL $user;
+  
+  if ($node->type != 'profile') {
+    return TRUE;
+  }
+  // determine the fieldset of the field
+  $group = fieldgroup_get_group('profile',$field->name);
+  if (!$group) return TRUE;
+  
+  $valid_groups = variable_get('content_profile_private_fieldgroups',array());
+  $privacy_settings = $user->content_profile_privacy; // this should be pulled from a user setting
+  
+  if (array_key_exists($group,$valid_groups)) {
+    if ($privacy_settings[$group] == 'groups') {
+      if (!content_profile_privacy_shared_group($account,$node->uid)) {
+        return FALSE;
+      }
+    } 
+  }
+  return TRUE;
+  
+}
+
+/**
+ * Implements hook_form_alter().
+ */
+function content_profile_privacy_form_alter(&$form, &$form_state, $form_id) {
+  
+  GLOBAL $user;
+  
+  switch ($form_id) {
+    case 'user_profile_form':
+      $profile_fieldgroups = fieldgroup_groups('profile');
+
+      // Form modification code goes here.
+      foreach($profile_fieldgroups as $name => $fieldgroup) {
+        // insert a checkbox for each fieldgroup
+        $form[$name] = array(
+          '#type' => 'select',
+          '#title' => t('Select Privacy for '. $fieldgroup['label']),
+          '#description' => t('The description appears usually below the item.'),
+          '#options' => array(
+            'all' => t('Everyone'),
+            'groups' => t('Groups Only'),
+          ),
+          '#default_value' => isset($user->$name)?
+           $user->content_profile_privacy[$name]: 'all',
+        );
+        
+      }
+      // insert a submit handler
+      $form['#submit'][] = 'content_profile_privacy_save_user';
+      break;
+  }
+}
+
+function content_profile_privacy_save_user(&$form,&$form_state) {
+  GLOBAL $user;
+  $profile_fieldgroups = fieldgroup_groups('profile');
+  $settings = array_intersect_key($form_state['values'],$profile_fieldgroups);
+  dsm(serialize($settings));
+  if (user_save($user,array('content_profile_privacy' => $settings))) {
+    dsm('Saved user preferences for content profile privacy.');    
+  }
+  else {
+    dsm('Could not save user preferences for content profile privacy.');
+  }
+}

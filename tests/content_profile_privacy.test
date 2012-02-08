@@ -1,0 +1,65 @@
+<?php
+
+class Content_profile_privacyTestCase extends DrupalWebTestCase {
+  public static function getInfo() {
+    return array(
+      'name' => t('Content_profile_privacy tests'),
+      'description' => t('One or more complete sentences explaining the test.'),
+      'group' => t('Content_profile_privacy'),
+    );
+  }
+
+  function setUp() {
+    parent::setUp('content_profile','content_profile_privacy','og','fieldgroup');
+    // create a content type
+    $user_group_type = array(
+        'type' => 'user_group', 
+        'name' => t('User Group'), 
+        'module' => 'node', 
+        'description' => t('A <em>book page</em> is a page of content, organized into a collection of related entries collectively known as a <em>book</em>. A <em>book page</em> automatically displays links to adjacent pages, providing a simple navigation system for organizing and reviewing structured content.'), 
+    );
+    node_type_save($user_group_type);
+    // give it a fieldgroup and two fields
+    fieldgroup_save_group('user_group',array( 
+      'group_type' => 'standard',
+      'group_name' => 'group_user_fields',
+      'group_label' => 'User Fields',
+      'settings' => '',
+      'weight' => 99,
+    ));
+    // give it an extra field 
+    // create three users 
+    $tom = user_save(NULL,array('name' => 'tom'));
+    $dick = user_save(NULL,array('name' => 'dick'));
+    $harry = user_save(NULL,array('name' => 'harry'));
+
+    // create two groups
+    $og = new OgTestCase();
+    $group_one = $og->addOgGroup('user_group');
+    $group_two = $og->addOgGroup('user_group');
+    // group 1 has 1+2
+    og_subscribe_user($group_one,$tom);
+    og_subscribe_user($group_one,$dick);
+    // group 2 has 2+3
+    og_subscribe_user($group_two,$dick);
+    og_subscribe_user($group_two,$harry);
+  }
+  
+  function testEveryoneWithCommonGroup() {
+    
+  }
+  
+  function testEveryoneWithNoCommonGroup() {
+    
+  }
+  
+  function testGroupsWithCommonGroup() {
+    
+  }
+  
+  function testGroupsWithNoCommonGroup() {
+    
+  }
+
+  
+}
